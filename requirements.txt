@@ -1,0 +1,7 @@
+altgraph==0.15
+future==0.16.0
+macholib==1.9
+pefile==2017.11.5
+Pillow==5.1.0
+#PyInstaller==3.4.dev0+79c1ff578
+#PySide2==5.11.0a1.dev1528475276
