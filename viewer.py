@@ -19,32 +19,79 @@ handler.setFormatter(logging.Formatter(
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
+
 class Signals(QtCore.QObject):
     file_open_signal = QtCore.Signal(str)
 
+
 SIGNALS = Signals()
 
-class WebPViewer(QtWidgets.QWidget):
+
+class PhotoLabel(QtWidgets.QLabel):
 
     def __init__(self, *args, **kwargs):
-        logger.debug('Starting WebPViewer')
+        super().__init__(*args, **kwargs)
+        self.source_pixmap = None
+
+    def resizeEvent(self, event):
+        try:
+            self.setPixmap(self.source_pixmap.scaled(
+                self.size(),
+                QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation,
+            ))
+        except AttributeError:
+            pass
+
+
+class PhotoViewer(QtWidgets.QWidget):
+
+    def __init__(self, *args, **kwargs):
+        logger.debug('Starting PhotoViewer')
 
         super().__init__(*args, **kwargs)
 
-        self.layout = QtWidgets.QVBoxLayout()
-        self.setLayout(self.layout)
+        self.layout = QtWidgets.QHBoxLayout()
 
-        self.container = QtWidgets.QLabel()
+        self.container = PhotoLabel()
         self.container.setAlignment(QtCore.Qt.AlignCenter)
 
+        self.container.setSizePolicy(
+            QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
         self.layout.addWidget(self.container)
+
+        self.setLayout(self.layout)
+
+        self.setAcceptDrops(True)
+
+        self.resize(QtGui.QGuiApplication.primaryScreen().availableSize() * 3/5)
+
         SIGNALS.file_open_signal.connect(self._open_pixmap)
 
     def _open_pixmap(self, filename):
         logger.debug('Opening Pixmap')
         logger.debug(filename)
-        self.pixmap = QtGui.QPixmap(filename)
-        self.container.setPixmap(self.pixmap)
+
+        self.container.source_pixmap = QtGui.QPixmap(filename)
+        self.container.setPixmap(
+            self.container.source_pixmap.scaled(
+                self.container.size(),
+                QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation,
+            )
+        )
+
+    def dragEnterEvent(self, event):
+        event.accept()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.setDropAction(QtCore.Qt.CopyAction)
+            event.accept()
+
+            self._open_pixmap(event.mimeData().urls()[0].toLocalFile())
+        else:
+            event.ignore()
 
 
 class App(QtWidgets.QApplication):
@@ -62,7 +109,8 @@ class App(QtWidgets.QApplication):
 if __name__ == "__main__":
     app = App(sys.argv)
 
-    widget = WebPViewer()
+    widget = PhotoViewer()
+    # widget.resize(350, 350)
     widget.show()
 
     sys.exit(app.exec_())
