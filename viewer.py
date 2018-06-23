@@ -27,40 +27,47 @@ class Signals(QtCore.QObject):
 SIGNALS = Signals()
 
 
+class Container(QtWidgets.QScrollArea):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 class PhotoLabel(QtWidgets.QLabel):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.source_pixmap = None
 
-    def resizeEvent(self, event):
-        try:
-            self.setPixmap(self.source_pixmap.scaled(
-                self.size(),
-                QtCore.Qt.KeepAspectRatio,
-                QtCore.Qt.SmoothTransformation,
-            ))
-        except AttributeError:
-            pass
+    # def resizeEvent(self, event):
+    #     try:
+    #         self.setPixmap(self.source_pixmap.scaled(
+    #             self.size(),
+    #             QtCore.Qt.KeepAspectRatio,
+    #             QtCore.Qt.SmoothTransformation,
+    #         ))
+    #     except AttributeError:
+    #         pass
 
 
-class PhotoViewer(QtWidgets.QWidget):
+class PhotoViewer(QtWidgets.QMainWindow):
 
     def __init__(self, *args, **kwargs):
         logger.debug('Starting PhotoViewer')
 
         super().__init__(*args, **kwargs)
 
-        self.layout = QtWidgets.QHBoxLayout()
+        self.container = Container()
+        self.setCentralWidget(self.container)
 
-        self.container = PhotoLabel()
-        self.container.setAlignment(QtCore.Qt.AlignCenter)
+        self.label = PhotoLabel()
+        self.label.setAlignment(QtCore.Qt.AlignCenter)
+        self.label.setScaledContents(True)
 
-        self.container.setSizePolicy(
+        self.label.setSizePolicy(
             QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
-        self.layout.addWidget(self.container)
 
-        self.setLayout(self.layout)
+        self.container.setWidget(self.label)
+        self.container.setAlignment(QtCore.Qt.AlignCenter)
 
         self.setAcceptDrops(True)
 
@@ -68,18 +75,36 @@ class PhotoViewer(QtWidgets.QWidget):
 
         SIGNALS.file_open_signal.connect(self._open_pixmap)
 
+
     def _open_pixmap(self, filename):
         logger.debug('Opening Pixmap')
         logger.debug(filename)
 
-        self.container.source_pixmap = QtGui.QPixmap(filename)
-        self.container.setPixmap(
-            self.container.source_pixmap.scaled(
-                self.container.size(),
-                QtCore.Qt.KeepAspectRatio,
-                QtCore.Qt.SmoothTransformation,
-            )
-        )
+        image_reader = QtGui.QImageReader(filename)
+        # image_reader.setAutoTransform(True)
+        new_image = image_reader.read()
+
+        self.label.setPixmap(QtGui.QPixmap.fromImage(new_image))
+        # self.label.adjustSize()
+
+        self._resize_pixmap()
+
+    def _resize_pixmap(self):
+        pixmap = self.label.pixmap()
+        try:
+            aspect = self.width() / self.height()
+            pixmap_ratio = pixmap.width() / pixmap.height()
+
+            if aspect > pixmap_ratio:
+                new_width = pixmap_ratio * self.height()
+                new_height = self.height()
+            else:
+                new_height = self.width() / pixmap_ratio
+                new_width = self.width()
+
+            self.label.resize(new_width, new_height)
+        except AttributeError:
+            pass
 
     def dragEnterEvent(self, event):
         event.accept()
@@ -92,6 +117,9 @@ class PhotoViewer(QtWidgets.QWidget):
             self._open_pixmap(event.mimeData().urls()[0].toLocalFile())
         else:
             event.ignore()
+
+    def resizeEvent(self, event):
+        self._resize_pixmap()
 
 
 class App(QtWidgets.QApplication):
