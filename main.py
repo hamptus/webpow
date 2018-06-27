@@ -1,4 +1,5 @@
 import sys
+from functools import partial
 
 from PIL import Image
 
@@ -141,6 +142,40 @@ class QualitySliderWidget(QtWidgets.QWidget):
         return self.slider.value()
 
 
+class FilenameList(QtWidgets.QListWidget):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+
+    def _remove_item(self, item):
+        while item.text() in self.parent().filenames:
+            self.parent().filenames.remove(item.text())
+        self.takeItem(self.row(item))
+
+    def _remove_one(self, event):
+        item = self.itemAt(event.pos())
+        self._remove_item(item)
+
+    def _remove_selected(self, event):
+        for item in self.selectedItems():
+            self._remove_item(item)
+
+    def _remove_all(self, event):
+        while self.count() > 0:
+            self.takeItem(0)
+        self.parent().filenames = []
+
+    def contextMenuEvent(self, event):
+        if self.count():
+            menu = QtWidgets.QMenu()
+            menu.addAction('Remove', partial(self._remove_one, event))
+            menu.addAction('Remove Selected', partial(self._remove_selected, event))
+            menu.addAction('Remove All', partial(self._remove_all, event))
+
+            menu.exec_(event.globalPos())
+
+
 class MyWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
@@ -156,7 +191,7 @@ class MyWidget(QtWidgets.QWidget):
 
         self.setWindowTitle('WebPow - The easiest way to convert your images to WebP')
 
-        self.filename_list = QtWidgets.QListWidget()
+        self.filename_list = FilenameList()
         self.layout.addWidget(QtWidgets.QLabel('Drop Images in the Box Below'))
         self.layout.addWidget(self.filename_list)
 
