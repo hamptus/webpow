@@ -2,7 +2,6 @@ import sys
 from functools import partial
 
 from PIL import Image
-
 from PySide2 import QtCore, QtWidgets, QtGui
 
 
@@ -77,7 +76,7 @@ class SizeWidget(QtWidgets.QWidget):
         self.container.addLayout(self.height_layout)
         self.layout.addLayout(self.container)
         self.layout.addWidget(QtWidgets.QLabel(
-            '<em><strong>Note</strong>: Aspect ratio is maintained when resizing output</em>')  # noqa: e501
+            '<em><strong>Note</strong>: Set the maximum height or width. Aspect ratio will be maintained.</em>')  # noqa: e501
         )
         self.layout.addSpacing(20)
 
@@ -144,18 +143,31 @@ class QualitySliderWidget(QtWidgets.QWidget):
 
 class FilenameList(QtWidgets.QListWidget):
 
+    EMPTY_STYLE = ("background-color: rgb(220, 220, 220);" 
+                   "border-radius: 5px; padding: 5px;")
+    ACTIVE_STYLE = ("background-color: palette(base);"
+                    "border-radius: 5px; padding: 5px;")
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.label = QtWidgets.QLabel(
+            'Drag images here to convert them to WebP', parent=self)
+        self.label.setAlignment(QtCore.Qt.AlignCenter)
+        self.label.setScaledContents(True)
+        self.label.setStyleSheet("color: rgb(120, 120, 120); font-size: 28px;")
+        self.label.setWordWrap(True)
+        self.label.resize(self.frameSize())
+        self.setStyleSheet(self.EMPTY_STYLE)
+
+    def resizeEvent(self, event):
+        self.label.resize(self.frameSize())
 
     def _remove_item(self, item):
         while item.text() in self.parent().filenames:
             self.parent().filenames.remove(item.text())
         self.takeItem(self.row(item))
-
-    def _remove_one(self, event):
-        item = self.itemAt(event.pos())
-        self._remove_item(item)
+        self.toggle_label()
 
     def _remove_selected(self, event):
         for item in self.selectedItems():
@@ -165,15 +177,24 @@ class FilenameList(QtWidgets.QListWidget):
         while self.count() > 0:
             self.takeItem(0)
         self.parent().filenames = []
+        self.toggle_label()
 
     def contextMenuEvent(self, event):
         if self.count():
             menu = QtWidgets.QMenu()
-            menu.addAction('Remove', partial(self._remove_one, event))
             menu.addAction('Remove Selected', partial(self._remove_selected, event))
             menu.addAction('Remove All', partial(self._remove_all, event))
 
             menu.exec_(event.globalPos())
+
+    def toggle_label(self):
+        if self.count():
+            self.label.setVisible(False)
+            self.setStyleSheet(self.ACTIVE_STYLE)
+
+        else:
+            self.label.setVisible(True)
+            self.setStyleSheet(self.EMPTY_STYLE)
 
 
 class MyWidget(QtWidgets.QWidget):
@@ -192,7 +213,6 @@ class MyWidget(QtWidgets.QWidget):
         self.setWindowTitle('WebPow - The easiest way to convert your images to WebP')
 
         self.filename_list = FilenameList()
-        self.layout.addWidget(QtWidgets.QLabel('Drop Images in the Box Below'))
         self.layout.addWidget(self.filename_list)
 
         self.resize_image = QtWidgets.QCheckBox()
@@ -231,12 +251,12 @@ class MyWidget(QtWidgets.QWidget):
         self.filemenu = QtWidgets.QMenu('&File')
         self.menubar.addMenu(self.filemenu)
 
-        self.filemenu.addAction('&Add File', self._add_file)
+        self.filemenu.addAction('&Add Files', self._add_file)
 
     def _add_file(self):
-        self._add_filename(
-            QtWidgets.QFileDialog.getOpenFileName(self, "Open Image")[0]
-        )
+        selected = QtWidgets.QFileDialog.getOpenFileNames(self, "Open Image")
+        for i in selected[0]:
+            self._add_filename(i)
 
     @property
     def max_width(self):
@@ -273,6 +293,7 @@ class MyWidget(QtWidgets.QWidget):
             QtWidgets.QListWidgetItem(filename, self.filename_list)
             self.filenames.append(filename)
 
+        self.filename_list.toggle_label()
 
 
 if __name__ == "__main__":
